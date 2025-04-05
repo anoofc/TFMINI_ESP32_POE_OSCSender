@@ -15,7 +15,7 @@ TFminiLiDAR lidar(2, 3);
 
 void setup() {
   Serial.begin(9600);
-  lidar.begin();
+  lidar.begin(115200);
 }
 
 void loop() {
@@ -23,7 +23,11 @@ void loop() {
     Serial.print("Distance: ");
     Serial.print(lidar.getDistance());
     Serial.print(" cm\tStrength: ");
-    Serial.println(lidar.getStrength());
+    Serial.print(tfmini.getStrength());
+    Serial.print("\tTemperature: ");
+    Serial.print(tfmini.getTemperature());
+    Serial.print(" °C\tFirmware Version: ");
+    Serial.println(tfmini.getFirmwareVersion());
   }
 }
 ```

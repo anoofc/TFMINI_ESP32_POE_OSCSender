@@ -131,9 +131,9 @@ void handleBTCommands() {
   else { SerialBT.println("Invalid command."); }
 }
 
-void oscSend(uint8_t deviceId, int value) {
+void oscSend(uint8_t deviceId, uint8_t sensorID, int value) {
   char address[20];
-  snprintf(address, sizeof(address), "/device%d/", deviceId);
+  snprintf(address, sizeof(address), "/device%d/sens%d/", deviceId);
   OSCMessage msg(address);
   msg.add(value);
   Udp.beginPacket(outIp, outPort);
@@ -153,13 +153,13 @@ void readSerial(){
 void readTFMini() {
   if (tfMini_1.readData()) {
     distance1 = tfMini_1.getDistance();
-    if      (!tfStatus_1 && distance1 <  thresh_dist) { tfStatus_1 = 1; oscSend(deviceID, 1); if (DEBUG){ Serial.println("TF 1 Triggered"); }}
-    else if (tfStatus_1  && distance1 >= thresh_dist) { tfStatus_1 = 0; oscSend(deviceID, 0); if (DEBUG){ Serial.println("TF 1 Reset"); }}
+    if      (!tfStatus_1 && distance1 <  thresh_dist) { tfStatus_1 = 1; oscSend(deviceID, 1, 1); if (DEBUG){ Serial.println("TF 1 Triggered"); }}
+    else if (tfStatus_1  && distance1 >= thresh_dist) { tfStatus_1 = 0; oscSend(deviceID, 1, 0); if (DEBUG){ Serial.println("TF 1 Reset"); }}
   }
   if (tfMini_2.readData()) {
     distance2 = tfMini_2.getDistance();
-    if      (!tfStatus_2 && distance2 <  thresh_dist) { tfStatus_2 = 1; oscSend(deviceID, 1); if (DEBUG){ Serial.println("TF 2 Triggered"); }}
-    else if ( tfStatus_2 && distance2 >= thresh_dist) { tfStatus_2 = 0; oscSend(deviceID, 0); if (DEBUG){ Serial.println("TF 2 Reset"); }}
+    if      (!tfStatus_2 && distance2 <  thresh_dist) { tfStatus_2 = 1; oscSend(deviceID, 2, 1); if (DEBUG){ Serial.println("TF 2 Triggered"); }}
+    else if ( tfStatus_2 && distance2 >= thresh_dist) { tfStatus_2 = 0; oscSend(deviceID, 2, 0); if (DEBUG){ Serial.println("TF 2 Reset"); }}
   } 
   if (DEBUG && millis() - lastMillis > DELAY){
     lastMillis = millis();

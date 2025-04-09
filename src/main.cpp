@@ -1,14 +1,10 @@
-#define DEBUG       0 // Enable debug messages
+#define DEBUG              0 // Enable debug messages
 
-#define OUT_IP      "10.255.250.129" // Destination IP
-
-#define deviceID    1
+#define deviceID           1
 #define THRESHOLD_DISTANCE 100 // Threshold distance in cm
-
-#define DELAY       10 // Delay between readings in milliseconds
+#define DELAY              10 // Delay between readings in milliseconds
 
 #include <Arduino.h>
-
 #include <TFminiLiDAR.h>
 #include <OSCMessage.h>
 #include <ETH.h>

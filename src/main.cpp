@@ -9,7 +9,10 @@
 #include <OSCMessage.h>
 #include <ETH.h>
 #include <WiFiUdp.h>
+#include <BluetoothSerial.h>
 #include "eth_properties.h"
+
+BluetoothSerial SerialBT;
 
 TFminiLiDAR tfMini_1(32, 13); // RX, TX
 TFminiLiDAR tfMini_2(34, 14); // RX, TX
@@ -45,13 +48,13 @@ void readSerial(){
 void readTFMini() {
   if (tfMini_1.readData()) {
     distance1 = tfMini_1.getDistance();
-    if      (!tfStatus_1 && distance1 < THRESHOLD_DISTANCE) { tfStatus_1 = 1; oscSend(deviceID, 1); if (DEBUG){ Serial.println("TF 1 Triggered"); }}
-    else if (tfStatus_1 && distance1 >= THRESHOLD_DISTANCE) { tfStatus_1 = 0; oscSend(deviceID, 0); if (DEBUG){ Serial.println("TF 1 Reset"); }}
+    if      (!tfStatus_1 && distance1 <  THRESHOLD_DISTANCE) { tfStatus_1 = 1; oscSend(deviceID, 1); if (DEBUG){ Serial.println("TF 1 Triggered"); }}
+    else if (tfStatus_1  && distance1 >= THRESHOLD_DISTANCE) { tfStatus_1 = 0; oscSend(deviceID, 0); if (DEBUG){ Serial.println("TF 1 Reset"); }}
   }
   if (tfMini_2.readData()) {
     distance2 = tfMini_2.getDistance();
-    if      (!tfStatus_2 && distance2 < THRESHOLD_DISTANCE) { tfStatus_2 = 1; oscSend(deviceID, 1); if (DEBUG){ Serial.println("TF 2 Triggered"); }}
-    else if (tfStatus_2 && distance2 >= THRESHOLD_DISTANCE) { tfStatus_2 = 0; oscSend(deviceID, 0); if (DEBUG){ Serial.println("TF 2 Reset"); }}
+    if      (!tfStatus_2 && distance2 <  THRESHOLD_DISTANCE) { tfStatus_2 = 1; oscSend(deviceID, 1); if (DEBUG){ Serial.println("TF 2 Triggered"); }}
+    else if ( tfStatus_2 && distance2 >= THRESHOLD_DISTANCE) { tfStatus_2 = 0; oscSend(deviceID, 0); if (DEBUG){ Serial.println("TF 2 Reset"); }}
   } 
   if (DEBUG && millis() - lastMillis > DELAY){
     lastMillis = millis();
@@ -59,7 +62,15 @@ void readTFMini() {
     Serial.printf ("Distance 2: %d \n", distance2);
   }
 }
-  
+
+void readSerialBT() {
+  if (SerialBT.available()) {
+    char c = SerialBT.read();
+    if (c=='i'){ SerialBT.printf("ETH IP: %s\n", ETH.localIP().toString().c_str());}
+    if (c=='m'){ SerialBT.printf("ETH MAC: %s\n", ETH.macAddress().c_str());}
+  }
+}
+
 void WiFiEvent(WiFiEvent_t event) {
   switch (event) {
     case SYSTEM_EVENT_ETH_START:
@@ -102,6 +113,7 @@ void tfminiInit() {
 
 void setup() {
   Serial.begin(115200);
+  SerialBT.begin("ESP32-ETH"); // Bluetooth device name
   tfminiInit();
   ethInit();
 }
@@ -109,4 +121,5 @@ void setup() {
 void loop() {
   readSerial();
   readTFMini();
+  readSerialBT();
 }

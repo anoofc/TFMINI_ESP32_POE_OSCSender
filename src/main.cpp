@@ -206,5 +206,4 @@ void loop() {
   readSerial();
   readTFMini();
   handleBTCommands();
-  // readSerialBT();
 }

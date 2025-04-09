@@ -20,7 +20,7 @@ TFminiLiDAR tfMini_2(34, 14); // RX, TX
 WiFiUDP Udp;
 
 uint8_t   deviceID;
-uint16_t  threshold_distance;
+uint16_t  thresh_dist;
 
 bool tfStatus_1 = 0;
 bool tfStatus_2 = 0;
@@ -28,8 +28,6 @@ int distance1   = 0;
 int distance2   = 0;
 
 uint32_t lastMillis = 0;
-
-
 
 IPAddress ip, subnet, gateway, outIp;
 uint16_t inPort = 7001;
@@ -60,7 +58,7 @@ void saveNetworkConfig() {
   saveIPAddress("gw", gateway);
   saveIPAddress("out", outIp);
   preferences.putUChar("deviceID", deviceID);  // Save deviceID
-  preferences.putUInt("threshold_distance", threshold_distance); // Save threshold distance
+  preferences.putUInt("thresh_dist", thresh_dist); // Save threshold distance
   preferences.putUInt("inPort", inPort); // Save input port
   preferences.putUInt("outPort", outPort); // Save output port
   preferences.end();
@@ -73,7 +71,7 @@ void loadNetworkConfig() {
   gateway = loadIPAddress("gw", IPAddress(10, 255, 250, 1));
   outIp = loadIPAddress("out", IPAddress(10, 255, 250, 129));
   deviceID = preferences.getUChar("deviceID", 1);  // Load deviceID
-  threshold_distance = preferences.getUInt("threshold_distance", 100); // Load threshold distance
+  thresh_dist = preferences.getUInt("thresh_dist", 100); // Load threshold distance
   inPort = preferences.getUInt("inPort", 7001); // Load input port
   outPort = preferences.getUInt("outPort", 7000); // Load output port
   preferences.end();
@@ -110,13 +108,16 @@ void handleBTCommands() {
   }
   else if (command.startsWith("SET_THRESHOLD ")) {
     int threshold = command.substring(14).toInt();
-    if (threshold > 0) { threshold_distance = static_cast<uint16_t>(threshold); saveNetworkConfig(); SerialBT.printf("✅ Threshold distance set to %d and saved.\n", threshold_distance); } 
+    if (threshold > 0) { thresh_dist = static_cast<uint16_t>(threshold); saveNetworkConfig(); SerialBT.printf("✅ Threshold distance set to %d and saved.\n", thresh_dist); } 
     else { SerialBT.println("❌ Invalid threshold. Must be greater than 0."); }
   }
   else if (command == "IP") { SerialBT.printf("ETH IP: %s\n", ETH.localIP().toString().c_str());}
   else if (command == "MAC") { SerialBT.printf("ETH MAC: %s\n", ETH.macAddress().c_str());}
   else if (command == "GET_CONFIG") {
-    SerialBT.printf("Current deviceID: %d\n", deviceID);
+    SerialBT.printf("deviceID: %d\n", deviceID);
+    SerialBT.printf("Threshold dist: %d\n", thresh_dist);
+    SerialBT.printf("Input port: %d\n", inPort);
+    SerialBT.printf("Output port: %d\n", outPort);
     SerialBT.printf("IP: %s\n", ip.toString().c_str());
     SerialBT.printf("Subnet: %s\n", subnet.toString().c_str());
     SerialBT.printf("Gateway: %s\n", gateway.toString().c_str());
@@ -152,13 +153,13 @@ void readSerial(){
 void readTFMini() {
   if (tfMini_1.readData()) {
     distance1 = tfMini_1.getDistance();
-    if      (!tfStatus_1 && distance1 <  threshold_distance) { tfStatus_1 = 1; oscSend(deviceID, 1); if (DEBUG){ Serial.println("TF 1 Triggered"); }}
-    else if (tfStatus_1  && distance1 >= threshold_distance) { tfStatus_1 = 0; oscSend(deviceID, 0); if (DEBUG){ Serial.println("TF 1 Reset"); }}
+    if      (!tfStatus_1 && distance1 <  thresh_dist) { tfStatus_1 = 1; oscSend(deviceID, 1); if (DEBUG){ Serial.println("TF 1 Triggered"); }}
+    else if (tfStatus_1  && distance1 >= thresh_dist) { tfStatus_1 = 0; oscSend(deviceID, 0); if (DEBUG){ Serial.println("TF 1 Reset"); }}
   }
   if (tfMini_2.readData()) {
     distance2 = tfMini_2.getDistance();
-    if      (!tfStatus_2 && distance2 <  threshold_distance) { tfStatus_2 = 1; oscSend(deviceID, 1); if (DEBUG){ Serial.println("TF 2 Triggered"); }}
-    else if ( tfStatus_2 && distance2 >= threshold_distance) { tfStatus_2 = 0; oscSend(deviceID, 0); if (DEBUG){ Serial.println("TF 2 Reset"); }}
+    if      (!tfStatus_2 && distance2 <  thresh_dist) { tfStatus_2 = 1; oscSend(deviceID, 1); if (DEBUG){ Serial.println("TF 2 Triggered"); }}
+    else if ( tfStatus_2 && distance2 >= thresh_dist) { tfStatus_2 = 0; oscSend(deviceID, 0); if (DEBUG){ Serial.println("TF 2 Reset"); }}
   } 
   if (DEBUG && millis() - lastMillis > DELAY){
     lastMillis = millis();

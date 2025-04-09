@@ -1,7 +1,5 @@
 #define DEBUG              0 // Enable debug messages
 
-#define deviceID           1
-#define THRESHOLD_DISTANCE 100 // Threshold distance in cm
 #define DELAY              10 // Delay between readings in milliseconds
 
 #include <Arduino.h>
@@ -21,10 +19,21 @@ TFminiLiDAR tfMini_2(34, 14); // RX, TX
 
 WiFiUDP Udp;
 
+uint8_t   deviceID;
+uint16_t  threshold_distance;
+
+bool tfStatus_1 = 0;
+bool tfStatus_2 = 0;
+int distance1   = 0;
+int distance2   = 0;
+
+uint32_t lastMillis = 0;
+
+
 
 IPAddress ip, subnet, gateway, outIp;
-const unsigned int inPort = 7001;
-const unsigned int outPort = 7000;
+uint16_t inPort = 7001;
+uint16_t outPort = 7000;
 
 const char* namespaceName = "network";
 
@@ -50,6 +59,10 @@ void saveNetworkConfig() {
   saveIPAddress("sub", subnet);
   saveIPAddress("gw", gateway);
   saveIPAddress("out", outIp);
+  preferences.putUChar("deviceID", deviceID);  // Save deviceID
+  preferences.putUInt("threshold_distance", threshold_distance); // Save threshold distance
+  preferences.putUInt("inPort", inPort); // Save input port
+  preferences.putUInt("outPort", outPort); // Save output port
   preferences.end();
 }
 
@@ -59,12 +72,15 @@ void loadNetworkConfig() {
   subnet = loadIPAddress("sub", IPAddress(255, 255, 254, 0));
   gateway = loadIPAddress("gw", IPAddress(10, 255, 250, 1));
   outIp = loadIPAddress("out", IPAddress(10, 255, 250, 129));
+  deviceID = preferences.getUChar("deviceID", 1);  // Load deviceID
+  threshold_distance = preferences.getUInt("threshold_distance", 100); // Load threshold distance
+  inPort = preferences.getUInt("inPort", 7001); // Load input port
+  outPort = preferences.getUInt("outPort", 7000); // Load output port
   preferences.end();
 }
 
 void handleBTCommands() {
   if (!SerialBT.available()) return;
-
   String command = SerialBT.readStringUntil('\n');
   command.trim();
 
@@ -72,36 +88,47 @@ void handleBTCommands() {
     String value = command.substring(offset);
     if (target.fromString(value)) {
       saveNetworkConfig();
-      SerialBT.printf("%s updated and saved.\n", prefix.c_str());
+      SerialBT.printf("✅ %s updated and saved.\n", prefix.c_str());
     } else {
-      SerialBT.printf("Invalid %s format.\n", prefix.c_str());
+      SerialBT.printf("❌ Invalid %s format.\n", prefix.c_str());
     }
   };
 
-  if (command.startsWith("SET_IP ")) {
-    updateIP("IP", ip, 7);
-  } else if (command.startsWith("SET_SUBNET ")) {
-    updateIP("Subnet", subnet, 11);
-  } else if (command.startsWith("SET_GATEWAY ")) {
-    updateIP("Gateway", gateway, 12);
-  } else if (command.startsWith("SET_OUTIP ")) {
-    updateIP("OutIP", outIp, 10);
-  } else if (command == "GET_CONFIG") {
+  if (command.startsWith("SET_IP ")) { updateIP("IP", ip, 7); } 
+  else if (command.startsWith("SET_SUBNET ")) { updateIP("Subnet", subnet, 11); } 
+  else if (command.startsWith("SET_GATEWAY ")) { updateIP("Gateway", gateway, 12);  } 
+  else if (command.startsWith("SET_OUTIP ")) { updateIP("OutIP", outIp, 10); } 
+  else if (command.startsWith ("SET_INPORT ")) {
+    int port = command.substring(10).toInt();
+    if (port > 0 && port < 65536) { inPort = static_cast<uint16_t>(port); saveNetworkConfig(); SerialBT.printf("✅ Input port set to %d and saved.\n", inPort); } 
+    else { SerialBT.println("❌ Invalid port. Must be between 1 and 65535."); }
+  }
+  else if (command.startsWith("SET_OUTPORT ")) {
+    int port = command.substring(12).toInt();
+    if (port > 0 && port < 65536) { outPort = static_cast<uint16_t>(port); saveNetworkConfig(); SerialBT.printf("✅ Output port set to %d and saved.\n", outPort); } 
+    else { SerialBT.println("❌ Invalid port. Must be between 1 and 65535."); }
+  }
+  else if (command.startsWith("SET_THRESHOLD ")) {
+    int threshold = command.substring(14).toInt();
+    if (threshold > 0) { threshold_distance = static_cast<uint16_t>(threshold); saveNetworkConfig(); SerialBT.printf("✅ Threshold distance set to %d and saved.\n", threshold_distance); } 
+    else { SerialBT.println("❌ Invalid threshold. Must be greater than 0."); }
+  }
+  else if (command == "IP") { SerialBT.printf("ETH IP: %s\n", ETH.localIP().toString().c_str());}
+  else if (command == "MAC") { SerialBT.printf("ETH MAC: %s\n", ETH.macAddress().c_str());}
+  else if (command == "GET_CONFIG") {
+    SerialBT.printf("Current deviceID: %d\n", deviceID);
     SerialBT.printf("IP: %s\n", ip.toString().c_str());
     SerialBT.printf("Subnet: %s\n", subnet.toString().c_str());
     SerialBT.printf("Gateway: %s\n", gateway.toString().c_str());
     SerialBT.printf("OutIP: %s\n", outIp.toString().c_str());
-  } else {
-    SerialBT.println("Invalid command.");
   }
+  else if (command.startsWith("SET_ID ")) {
+    int id = command.substring(7).toInt();
+    if (id >= 0 && id <= 255) { deviceID = static_cast<uint8_t>(id); saveNetworkConfig(); SerialBT.printf("✅ deviceID set to %d and saved.\n", deviceID);} 
+    else { SerialBT.println("❌ Invalid ID. Must be between 0 and 255."); }
+  }
+  else { SerialBT.println("Invalid command."); }
 }
-
-bool tfStatus_1 = 0;
-bool tfStatus_2 = 0;
-int distance1   = 0;
-int distance2   = 0;
-
-uint32_t lastMillis = 0;
 
 void oscSend(uint8_t deviceId, int value) {
   char address[20];
@@ -125,26 +152,18 @@ void readSerial(){
 void readTFMini() {
   if (tfMini_1.readData()) {
     distance1 = tfMini_1.getDistance();
-    if      (!tfStatus_1 && distance1 <  THRESHOLD_DISTANCE) { tfStatus_1 = 1; oscSend(deviceID, 1); if (DEBUG){ Serial.println("TF 1 Triggered"); }}
-    else if (tfStatus_1  && distance1 >= THRESHOLD_DISTANCE) { tfStatus_1 = 0; oscSend(deviceID, 0); if (DEBUG){ Serial.println("TF 1 Reset"); }}
+    if      (!tfStatus_1 && distance1 <  threshold_distance) { tfStatus_1 = 1; oscSend(deviceID, 1); if (DEBUG){ Serial.println("TF 1 Triggered"); }}
+    else if (tfStatus_1  && distance1 >= threshold_distance) { tfStatus_1 = 0; oscSend(deviceID, 0); if (DEBUG){ Serial.println("TF 1 Reset"); }}
   }
   if (tfMini_2.readData()) {
     distance2 = tfMini_2.getDistance();
-    if      (!tfStatus_2 && distance2 <  THRESHOLD_DISTANCE) { tfStatus_2 = 1; oscSend(deviceID, 1); if (DEBUG){ Serial.println("TF 2 Triggered"); }}
-    else if ( tfStatus_2 && distance2 >= THRESHOLD_DISTANCE) { tfStatus_2 = 0; oscSend(deviceID, 0); if (DEBUG){ Serial.println("TF 2 Reset"); }}
+    if      (!tfStatus_2 && distance2 <  threshold_distance) { tfStatus_2 = 1; oscSend(deviceID, 1); if (DEBUG){ Serial.println("TF 2 Triggered"); }}
+    else if ( tfStatus_2 && distance2 >= threshold_distance) { tfStatus_2 = 0; oscSend(deviceID, 0); if (DEBUG){ Serial.println("TF 2 Reset"); }}
   } 
   if (DEBUG && millis() - lastMillis > DELAY){
     lastMillis = millis();
     Serial.printf ("Device ID: %d Distance 1: %d \t", deviceID, distance1);
     Serial.printf ("Distance 2: %d \n", distance2);
-  }
-}
-
-void readSerialBT() {
-  if (SerialBT.available()) {
-    char c = SerialBT.read();
-    if (c=='i'){ SerialBT.printf("ETH IP: %s\n", ETH.localIP().toString().c_str());}
-    if (c=='m'){ SerialBT.printf("ETH MAC: %s\n", ETH.macAddress().c_str());}
   }
 }
 

@@ -1,11 +1,11 @@
 # 🚀 ESP32 Ethernet OSC Trigger with Dual TFmini LiDAR
 
-This project is built for the **LILYGO T-Eth Lite ESP32** board and integrates:
+This project is designed for the **LILYGO T-Eth Lite ESP32** board and features:
 
-- 📡 Ethernet communication (OSC over UDP)
-- 🔦 Dual TFmini LiDAR sensors for distance-based triggering
-- 🔧 Bluetooth Serial interface for dynamic network configuration
-- 💾 Persistent IP settings using `Preferences.h` (replacing EEPROM)
+- 📡 Ethernet communication using OSC over UDP
+- 🔦 Dual TFmini LiDAR sensors for proximity-based triggering
+- 🔧 Bluetooth Serial interface for live configuration
+- 💾 Persistent settings via `Preferences.h` (IP, Ports, device ID, threshold, etc.)
 
 ---
 
@@ -14,33 +14,34 @@ This project is built for the **LILYGO T-Eth Lite ESP32** board and integrates:
 ```
 .
 ├── main.cpp              # Main application logic
-├── eth_properties.h      # Ethernet and SD pin definitions
-├── platformio.ini        # PlatformIO build config
+├── eth_properties.h      # Ethernet and SD pin macros
+├── platformio.ini        # PlatformIO build configuration
 ```
 
 ---
 
 ## 🧠 Features
 
-- ✅ Dual TFmini LIDAR sensor support
-- ✅ OSC message sending over Ethernet (UDP)
-- ✅ Bluetooth Serial configuration (SET/GET IP)
-- ✅ Persistent network settings using Preferences
-- ✅ Debug logging via Serial Monitor
-- ✅ 16MB Flash + 8MB PSRAM enabled via PlatformIO
+- Dual TFmini LIDAR sensor support
+- OSC message broadcasting over Ethernet
+- Runtime configuration via Bluetooth Serial (IP, Ports, Threshold, deviceID)
+- Persistent storage of all settings using Preferences
+- Ethernet PHY configuration (RTL8201) with RMII interface
+- Debug logging option
+- Configurable input/output ports and distance thresholds
 
 ---
 
-## 🛠️ Hardware Connections
+## 🛠️ Hardware Setup
 
-| Component     | Pin                          |
-|---------------|------------------------------|
-| TFmini 1      | RX: 32, TX: 13               |
-| TFmini 2      | RX: 34, TX: 14               |
-| Ethernet PHY  | RTL8201 via RMII             |
-| SD Card       | MISO: 34, MOSI: 13, SCLK: 14, CS: 5 |
+| Peripheral     | ESP32 Pin Mapping |
+|----------------|-------------------|
+| TFmini-1       | RX: 32, TX: 13     |
+| TFmini-2       | RX: 34, TX: 14     |
+| Ethernet PHY   | RTL8201 (RMII)     |
+| SD Card (opt.) | MISO: 34, MOSI: 13, SCLK: 14, CS: 5 |
 
-All these pin mappings are defined in [`eth_properties.h`](eth_properties.h).
+Pin mappings are configured in [`eth_properties.h`](eth_properties.h).
 
 ---
 
@@ -68,95 +69,97 @@ build_flags =
 
 ---
 
-## 🌐 Default Network Configuration
+## 🌐 Default Network Settings
 
-| Parameter      | Value               |
-|----------------|---------------------|
-| IP Address     | `10.255.250.150`    |
-| Subnet         | `255.255.254.0`     |
-| Gateway        | `10.255.250.1`      |
-| Destination IP | `10.255.250.129`    |
-| UDP In Port    | `7001`              |
-| UDP Out Port   | `7000`              |
-
-These values are **saved to flash memory** using `Preferences.h` and persist across reboots.
+| Setting          | Default Value          |
+|------------------|------------------------|
+| IP Address       | 10.255.250.150         |
+| Subnet Mask      | 255.255.254.0          |
+| Gateway          | 10.255.250.1           |
+| Destination IP   | 10.255.250.129         |
+| Input Port       | 7001                   |
+| Output Port      | 7000                   |
+| Threshold (cm)   | 100                    |
+| Device ID        | 1                      |
 
 ---
 
 ## 🔧 Bluetooth Commands
 
-Connect to `ESP32-ETH` via any Bluetooth serial terminal (e.g., Serial Bluetooth Terminal app). You can send the following commands:
+Connect to `ESP32-ETH` using any Bluetooth terminal app (e.g., Serial Bluetooth Terminal). The following commands are available:
 
-| Command            | Description                    |
-|--------------------|--------------------------------|
-| `SET_IP <ip>`      | Set device IP address          |
-| `SET_SUBNET <ip>`  | Set subnet mask                |
-| `SET_GATEWAY <ip>` | Set gateway IP                 |
-| `SET_OUTIP <ip>`   | Set destination IP             |
-| `GET_CONFIG`       | Print current IP configuration |
-| `i`                | Print current ETH IP           |
-| `m`                | Print MAC address              |
+| Command                | Description                         |
+|------------------------|-------------------------------------|
+| `SET_IP <x.x.x.x>`     | Set static IP address               |
+| `SET_SUBNET <x.x.x.x>` | Set subnet mask                     |
+| `SET_GATEWAY <x.x.x.x>`| Set gateway IP                      |
+| `SET_OUTIP <x.x.x.x>`  | Set destination IP for OSC          |
+| `SET_INPORT <port>`    | Set local input port for UDP        |
+| `SET_OUTPORT <port>`   | Set remote output port for OSC      |
+| `SET_THRESHOLD <val>`  | Set LIDAR threshold distance (cm)   |
+| `SET_ID <0-255>`       | Set device ID for OSC address       |
+| `GET_CONFIG`           | Display all current config values   |
+| `IP`                   | Show current Ethernet IP            |
+| `MAC`                  | Show Ethernet MAC address           |
 
 ---
 
-## 📏 Trigger Logic
+## 📏 LIDAR Trigger Logic
 
-Both LIDAR sensors check for objects within a `THRESHOLD_DISTANCE` (default: `100 cm`).
+Each TFmini sensor checks whether an object is within `threshold_distance`.
 
-If an object is detected:
-- A trigger OSC message is sent with value `1`
-- When object moves out of range, a reset message (`0`) is sent
+If yes:
+- OSC message is sent: `/device<ID>/ 1`
 
-**OSC Address Format:**
-```
-/device<ID>/  [value: 1 or 0]
-```
+If the object moves out:
+- OSC message is sent: `/device<ID>/ 0`
 
-> `deviceID` is defined in the code (default: `1`).
+Both sensors are checked independently and send the same OSC address format with device ID.
 
 ---
 
 ## 📡 OSC Messaging
 
-- Protocol: UDP
-- Destination: Configurable via Bluetooth
-- Format: `/device1/` with integer payload (1 or 0)
+- Sent via UDP to the configured `outIp:outPort`
+- OSC message format:
+  ```
+  Address: /device<ID>/
+  Payload: [int] 1 or 0
+  ```
 
 ---
 
-## 🧪 Debug Mode
+## 🧪 Debugging
 
-To enable verbose output:
+To enable debug output:
 ```cpp
 #define DEBUG 1
 ```
 
-This will print:
-- Sensor distance readings
-- Trigger/reset actions
-- IP/MAC info when `i` or `m` is received via serial
+This will show LIDAR readings and trigger states over Serial.
 
 ---
 
-## 🧵 Setup Instructions
+## 🔌 Setup Instructions
 
-1. Clone the repo and open it in [PlatformIO](https://platformio.org/)
+1. Open this project in [PlatformIO](https://platformio.org/)
 2. Connect the LILYGO T-Eth Lite ESP32 via USB
-3. Build & upload the firmware
-4. Open Serial Monitor @ `115200 baud`
-5. Power the board with Ethernet cable connected
-6. Configure IP via Bluetooth (optional)
+3. Upload firmware to the board
+4. Connect Ethernet cable
+5. Use Serial Monitor @ 115200 baud to view logs
+6. Use a Bluetooth terminal to configure network or device ID
 
 ---
 
-## 🧠 Future Ideas
+## 🧠 Future Enhancements
 
-- Add web-based config interface via AsyncWebServer
-- Integrate OLED/LED feedback for trigger state
-- Multi-device OSC broadcasting with unique IDs
+- Web-based configuration page via ESPAsyncWebServer
+- Save/load config presets
+- OLED display for live values
+- Trigger debounce and averaging filters
 
 ---
 
 ## 📜 License
 
-This project is open-source and free to use under MIT License.
+This project is licensed under the MIT License. Free to use, modify, and distribute.

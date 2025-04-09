@@ -124,7 +124,7 @@ Both sensors are checked independently and send the same OSC address format with
 - OSC message format:
   ```
   Address: /composition/columns/<column>/connect
-  Payload: [int] 1 or 0
+  Payload: [int] 1
   ```
 
 ---

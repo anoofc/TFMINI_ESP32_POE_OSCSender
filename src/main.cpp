@@ -10,14 +10,91 @@
 #include <ETH.h>
 #include <WiFiUdp.h>
 #include <BluetoothSerial.h>
+#include <Preferences.h>
 #include "eth_properties.h"
 
 BluetoothSerial SerialBT;
+Preferences preferences;
 
 TFminiLiDAR tfMini_1(32, 13); // RX, TX
 TFminiLiDAR tfMini_2(34, 14); // RX, TX
 
 WiFiUDP Udp;
+
+
+IPAddress ip, subnet, gateway, outIp;
+const unsigned int inPort = 7001;
+const unsigned int outPort = 7000;
+
+const char* namespaceName = "network";
+
+void saveIPAddress(const char* keyPrefix, IPAddress address) {
+  for (int i = 0; i < 4; i++) {
+    String key = String(keyPrefix) + i;
+    preferences.putUInt(key.c_str(), address[i]);
+  }
+}
+
+IPAddress loadIPAddress(const char* keyPrefix, IPAddress defaultIP) {
+  IPAddress result;
+  for (int i = 0; i < 4; i++) {
+    String key = String(keyPrefix) + i;
+    result[i] = preferences.getUInt(key.c_str(), defaultIP[i]);
+  }
+  return result;
+}
+
+void saveNetworkConfig() {
+  preferences.begin(namespaceName, false);
+  saveIPAddress("ip", ip);
+  saveIPAddress("sub", subnet);
+  saveIPAddress("gw", gateway);
+  saveIPAddress("out", outIp);
+  preferences.end();
+}
+
+void loadNetworkConfig() {
+  preferences.begin(namespaceName, true);
+  ip = loadIPAddress("ip", IPAddress(10, 255, 250, 150));
+  subnet = loadIPAddress("sub", IPAddress(255, 255, 254, 0));
+  gateway = loadIPAddress("gw", IPAddress(10, 255, 250, 1));
+  outIp = loadIPAddress("out", IPAddress(10, 255, 250, 129));
+  preferences.end();
+}
+
+void handleBTCommands() {
+  if (!SerialBT.available()) return;
+
+  String command = SerialBT.readStringUntil('\n');
+  command.trim();
+
+  auto updateIP = [&](const String& prefix, IPAddress& target, int offset) {
+    String value = command.substring(offset);
+    if (target.fromString(value)) {
+      saveNetworkConfig();
+      SerialBT.printf("%s updated and saved.\n", prefix.c_str());
+    } else {
+      SerialBT.printf("Invalid %s format.\n", prefix.c_str());
+    }
+  };
+
+  if (command.startsWith("SET_IP ")) {
+    updateIP("IP", ip, 7);
+  } else if (command.startsWith("SET_SUBNET ")) {
+    updateIP("Subnet", subnet, 11);
+  } else if (command.startsWith("SET_GATEWAY ")) {
+    updateIP("Gateway", gateway, 12);
+  } else if (command.startsWith("SET_OUTIP ")) {
+    updateIP("OutIP", outIp, 10);
+  } else if (command == "GET_CONFIG") {
+    SerialBT.printf("IP: %s\n", ip.toString().c_str());
+    SerialBT.printf("Subnet: %s\n", subnet.toString().c_str());
+    SerialBT.printf("Gateway: %s\n", gateway.toString().c_str());
+    SerialBT.printf("OutIP: %s\n", outIp.toString().c_str());
+  } else {
+    SerialBT.println("Invalid command.");
+  }
+}
 
 bool tfStatus_1 = 0;
 bool tfStatus_2 = 0;
@@ -115,11 +192,19 @@ void setup() {
   Serial.begin(115200);
   SerialBT.begin("ESP32-ETH"); // Bluetooth device name
   tfminiInit();
+
+  loadNetworkConfig();
+
+  Serial.printf("Loaded IP: %s\n", ip.toString().c_str());
+  Serial.printf("Subnet: %s\n", subnet.toString().c_str());
+  Serial.printf("Gateway: %s\n", gateway.toString().c_str());
+  Serial.printf("OutIP: %s\n", outIp.toString().c_str());
   ethInit();
 }
 
 void loop() {
   readSerial();
   readTFMini();
-  readSerialBT();
+  handleBTCommands();
+  // readSerialBT();
 }

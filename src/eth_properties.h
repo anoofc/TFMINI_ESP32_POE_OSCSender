@@ -11,10 +11,3 @@
 #define SD_CS_PIN                       5
 
 
-// ETHERNET CONFIGURATION
-IPAddress ip(10, 255, 250, 150);                         //the Arduino's IP
-IPAddress subnet(255, 255, 254, 0);                     //subnet mask
-IPAddress gateway(10, 255, 250, 1);                     //gateway IP
-IPAddress outIp(10, 255, 250, 129);                     //destination IP
-const unsigned int inPort = 7001;                       //Arduino's Port
-const unsigned int outPort = 7000;                      //destination Port

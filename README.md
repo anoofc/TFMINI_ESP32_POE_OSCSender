@@ -109,12 +109,12 @@ Connect to `ESP32-ETH` using any Bluetooth terminal app (e.g., Serial Bluetooth 
 Each TFmini sensor checks whether an object is within `threshold_distance`.
 
 If yes:
-- OSC message is sent: `/device<ID>/ 1`
+- OSC message is sent: `/device<ID>/sens<ID>/ 1`
 
 If the object moves out:
-- OSC message is sent: `/device<ID>/ 0`
+- OSC message is sent: `/device<ID>/sens<ID>/ 0`
 
-Both sensors are checked independently and send the same OSC address format with device ID.
+Both sensors are checked independently and send the same OSC address format with device ID and sensor ID.
 
 ---
 
@@ -123,7 +123,7 @@ Both sensors are checked independently and send the same OSC address format with
 - Sent via UDP to the configured `outIp:outPort`
 - OSC message format:
   ```
-  Address: /device<ID>/
+  Address: /device<ID>/sens<ID>/
   Payload: [int] 1 or 0
   ```
 
